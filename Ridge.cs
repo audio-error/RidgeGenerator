@@ -67,7 +67,7 @@ public class Ridge
         //Console.WriteLine("New grid size is {0}", newGrid.GetLength(0));
     }
 
-    //Add a new pixel to the grid, then move it randomly until it is next to another pixel
+    //Add a new pixel to the grid, then move it in random directions until it is next to another pixel
     //returns the final position of the pixel
     private Coordinate CreateNewPixel()
     {
@@ -77,23 +77,29 @@ public class Ridge
             x = _random.Next(_size - 1),
             y = _random.Next(_size - 1)
         };
-        //If the position already has a pixel, keep moving until we find an empty position.
+        //If the position already has a pixel, change starting position until we find an empty position.
         int c = 0;
         while (_pixelMap[newPosition.x, newPosition.y] == 1)
         {
-            if (c == 1000) { throw(new Exception("This grid is probably full or you are incredibly unlucky."));}
+            if (c == 100) { throw(new Exception("This grid is probably full or you are incredibly unlucky."));}
             newPosition.x = _random.Next(_size - 1);
             newPosition.y = _random.Next(_size - 1);
             c++;
         }
 
-        //keep moving randomly until we are next to another pixel
+        //Keep moving in random directions until we are next to another pixel
         c = 0;
         while (!CheckPosition(newPosition))
         {
-            if (c == 1000) { throw(new Exception("Timed out. Couldn't find a neighbor after 1000 tries"));}
-            newPosition.x = _random.Next(_size - 1);
-            newPosition.y = _random.Next(_size - 1);
+            if (c == 10000) { throw new Exception( string.Format("Timed out. Couldn't find a neighbor after {0} tries", c) );}
+
+            newPosition.x = newPosition.x + _random.Next(-1,2);
+            newPosition.y = newPosition.y + _random.Next(-1,2);
+            
+            //old depreciated
+            /*newPosition.x = _random.Next(_size - 1);
+            newPosition.y = _random.Next(_size - 1);*/
+
             c++;
         }
         
@@ -142,13 +148,13 @@ public class Ridge
     }
 
     //populate the grid with pixels, this will expand the grid exponentially
-    public void Iterate(int numberOfIterations)
+    public void Iterate(int numberOfIterations, double density = 1)
     {
         //create the initial pixels
         Console.WriteLine("Creating grid.");
 
         int fails = 0;
-        for (int j = 0; j < _pixelMap.GetLength(0) * 2; j++)
+        for (int j = 0; j < _pixelMap.GetLength(0) * density; j++)
         {
             try { CreateNewPixel(); Console.Write(".");}
             catch (Exception e) { Console.WriteLine(e); fails++; Console.Write("x");
@@ -165,8 +171,15 @@ public class Ridge
             for (int j = 0; j < _pixelMap.GetLength(0) * 2; j++)
             {
                 previousFails = fails;
-                try { CreateNewPixel(); Console.Write(".");}
-                catch (Exception e) { fails++; Console.Write("x");
+                try
+                {
+                    CreateNewPixel(); 
+                    //Console.Write(".");
+                }
+                catch (Exception e) 
+                { 
+                    fails++;
+                    //Console.Write("x");
                 }
             }
 
