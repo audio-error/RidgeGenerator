@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Runtime.InteropServices;
 using SkiaSharp;
 
@@ -5,7 +6,7 @@ namespace RidgeGenerator;
 
 public class ConvertToImage
 {
-    public static SKBitmap ArrayToImage(byte[,,] pixelArray)
+    public static SKBitmap ByteArrayToImage(byte[,,] pixelArray)
     {
         int width = pixelArray.GetLength(1);
         int height = pixelArray.GetLength(0);
@@ -35,6 +36,8 @@ public class ConvertToImage
         return bitmap;
     }
     
+    //I know it says Int array but it also accepts Bytes
+    [Description("I know it says Int array but it also accepts Byte[,]")]
     public static byte[,,] IntArrayToByteArray(int[,] pixelArray)
     {
         int width = pixelArray.GetLength(0);
@@ -55,6 +58,63 @@ public class ConvertToImage
                 byteArray[y, x, 1] = red;
                 byteArray[y, x, 2] = green;
                 byteArray[y, x, 3] = blue;
+            }
+        }
+        
+        return byteArray;
+    }
+    //Overload for Byte[,]
+    [Description("I know it says Int array but it also accepts Byte[,]")]
+    public static byte[,,] IntArrayToByteArray(byte[,] pixelArray)
+    {
+        int width = pixelArray.GetLength(0);
+        int height = pixelArray.GetLength(0);
+
+        byte[,,] byteArray = new byte[width, height, 4];
+        
+        for (int x = 0; x < width; x++)
+        {
+            for (int y = 0; y < height; y++)
+            {
+                byte alpha = Convert.ToByte(pixelArray[x,y]); //we are assuming that the bytes
+                byte red = Convert.ToByte(pixelArray[x,y]);   //are already correct colour values
+                byte green = Convert.ToByte(pixelArray[x,y]);
+                byte blue = Convert.ToByte(pixelArray[x,y]);
+                
+                byteArray[y, x, 0] = alpha;
+                byteArray[y, x, 1] = red;
+                byteArray[y, x, 2] = green;
+                byteArray[y, x, 3] = blue;
+            }
+        }
+        
+        return byteArray;
+    }
+    
+    
+    //does what it says on the tin
+    public static byte[,] BitmapToByteArray(SKBitmap bitmap)
+    { 
+        SKColor[] pixels = bitmap.Pixels;
+
+        int length = pixels.Length;
+        int size = (int)Math.Sqrt(length);
+        
+        // quick algorithm curtesy of ChatGPT. Please tell me if this needs correcting.
+        // Check if the array can form a square (i.e., its length is a perfect square)
+        if (size * size != length)
+        {
+            throw new ArgumentException("The size of the 1D array is not a perfect square.");
+        }
+
+        byte[,] byteArray = new byte[bitmap.Width, bitmap.Height];;
+
+        int index = 0;
+        for (int row = 0; row < size; row++)
+        {
+            for (int col = 0; col < size; col++)
+            {
+                byteArray[row, col] = pixels[index++].Red;//only use the red channel. -Sean
             }
         }
         
