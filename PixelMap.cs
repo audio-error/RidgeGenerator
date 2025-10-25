@@ -20,6 +20,7 @@ public class PixelMap
 
     public bool AddPixel(int x, int y, byte value)
     {
+        
         if (x < 0 || y < 0 || x >= GridSize || y >= GridSize) throw new ArgumentOutOfRangeException();
         if (_pixelMap[x, y] == 0)
         {
@@ -51,6 +52,22 @@ public class PixelMap
     {
         _pixelMap = new byte[GridSize, GridSize];
         Size = 0;
+    }
+
+    public void AddPixelMap(PixelMap other)
+    {
+        for (int y = 0; y < other.GridSize; y++)
+        {
+            for (int x = 0; x < other.GridSize; x++)
+            {
+                if (other.GetPixel(x, y) > 0)
+                {
+                    double value = GetPixel(x,y) + other.GetPixel(x, y);
+                    if (value > 200) value = 200; 
+                    _pixelMap[x, y] = (byte)value;
+                }
+            }
+        }
     }
     
     //Doubles the size of the grid and centers the pixels
@@ -94,25 +111,28 @@ public class PixelMap
                 kernalValues.Add(_pixelMap[currentX, currentY]);
             }
         }
-
-
         double result = kernalValues.Average();
-        //Console.WriteLine($"Convolution on {x},{y} = {result}");
         if (result > 255) return 255;
         return (byte)result;
     }
     
     //will produce a convoluted blurry version of the image. 
-    public byte[,] Convolute()
+    public void Convolute()
     {
         byte[,] convolutedImage = new byte[GridSize, GridSize];
         double[,] kernal = new double[5, 5]
         {  //circular kernal for a softer approach
-            {  1,     1,   1f/13f,   1,     1   },
-            {  1,   1f/13f, 1f/13f, 1f/13f,   1   },
-            {1f/13f, 1f/13f, 1f/13f, 1f/13f, 1f/13f },
-            {  1,   1f/13f, 1f/13f, 1f/13f,   1   },
-            {  1,     1,   1f/13f,   1,     1   }
+            {   1  ,   1  ,1f/13f,  1   ,  1   },
+            {   1  ,1f/13f,1f/13f,1f/13f,  1   },
+            {1f/13f,1f/13f,1f/13f,1f/13f,1f/13f},
+            {   1  ,1f/13f,1f/13f,1f/13f,  1   },
+            {   1  ,   1  ,1f/13f,  1   ,  1   }
+        };
+        double[,] kernalSmall = new double[3, 3]
+        {  //smaller circular kernal for a less precise approach
+            {   1  ,1f/13f,  1   },
+            {1f/13f,1f/13f,1f/13f},
+            {   1  ,1f/13f,  1   }
         };
         for (int x = 0; x < GridSize; x++)
         {
@@ -121,12 +141,13 @@ public class PixelMap
                 convolutedImage[x,y] = Convolve(kernal,x,y);
             }
         }
-        return convolutedImage;
+        _pixelMap = convolutedImage;
     }
 
     //Draw the grid to the console
-    public void DrawGrid()
+    public void DrawGrid(bool numbers=false)
     {
+        
         Console.WriteLine("Drawing Grid of size: {0}", _pixelMap.GetLength(0));
         int pCount = 0;
         //draw top row
@@ -137,7 +158,12 @@ public class PixelMap
             Console.Write('│');
             for (int j = 0; j < _pixelMap.GetLength(1); j++)
             {
-                if (_pixelMap[j, i] > 0) {Console.Write("█"); pCount++;}
+                if (_pixelMap[j, i] > 0)
+                {
+                    if (numbers) Console.Write(_pixelMap[j, i]);
+                    Console.Write("█"); 
+                    pCount++;
+                }
                 else {Console.Write(" ");}
             }
             Console.Write('│');
@@ -160,16 +186,14 @@ public class PixelMap
 
     //upscale the grid by linear interpolation
     //Depreciated
-    public void UpscaleLinearInterpolation(int amount)
+    public void UpscaleLinearInterpolation(int scale)
     {
-        int adjustAmount = amount;
-        
         //covert pixelmap into a bitmap
         SKBitmap newBitmap = ConvertToImage.ByteArrayToImage(ConvertToImage.IntArrayToByteArray(_pixelMap));
         SKBitmap upscaledBitmap = new SKBitmap();
         //then upscale using linear interpolation from Skiasharp
-        SKSamplingOptions samplingOptions = new SKSamplingOptions(filter:SKFilterMode.Nearest);
-        SKSizeI imageSize = new SKSizeI( _pixelMap.GetLength(0) * adjustAmount, _pixelMap.GetLength(0) * adjustAmount);
+        SKSamplingOptions samplingOptions = new SKSamplingOptions(filter:SKFilterMode.Linear);
+        SKSizeI imageSize = new SKSizeI( GridSize * scale, GridSize * scale);
         upscaledBitmap = newBitmap.Resize(imageSize, samplingOptions);
         //we're doing it this was because I'm lazy - Sean
         

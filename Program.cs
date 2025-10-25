@@ -5,11 +5,11 @@ using RidgeGenerator;
 using SkiaSharp;
 
 
-Ridge heightMap = new Ridge(4,2);
+Ridge heightMap = new Ridge(4);
 
 //heightMap.CreateSinglePixel(220);
-
-
+//heightMap.Iterate(3);
+heightMap.Debug(Ridge.DebugType.CreateSmallGrid);
 
 
 

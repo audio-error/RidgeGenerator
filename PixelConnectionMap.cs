@@ -40,20 +40,28 @@ public class PixelConnectionMap
     }
     
     //when adding a point we must pass the point it is connected too
-    public void AddPoint(int x, int y, int connectedX, int connectedY, int weight)
+    public void AddPoint(int x, int y, int weight, Coordinate neighbor)
     {
-        //Console.WriteLine($"Connecting {x},{y} to {connectedX},{connectedY}");
-        Point point = new Point(x, y, weight);
-        if (x != connectedX || y != connectedY)
+        Console.WriteLine($"Received ({x},{y})-{neighbor}");
+        //loop through all the points to find the matching neighbor
+        foreach (Point point in _points)
         {
-            point.ConnectedPoint = new Point(connectedX, connectedY);
+            Console.WriteLine($"Checking if {neighbor} = {point}");
+            if (point == neighbor)
+            {
+                Console.WriteLine($"Yes, they are the same");
+                //create a new point object and make it's neighbor the point we just found
+                Point newPoint = new Point(point.x, point.y, weight, point);
+                _points.Add(newPoint);
+                Size++;
+                return;
+            }
         }
-        //Console.WriteLine($"Adding: {point}");
-        _points.Add(point);
-        Size++;
+        throw new Exception("We Found no matching neighbor point to connect to.");
     }
     public void AddPoint(Point p)
     {
+        Console.WriteLine($"Received {p}, but it has no neighbors");
         //Console.WriteLine($"Adding: {p}");
         Size++;
         _points.Add(p);
@@ -61,7 +69,7 @@ public class PixelConnectionMap
 
     //upscales by 2 times
     //Todo: jiggle midpoints a small amount to reduce the artificialness of the ridges
-    public void UpscaleDouble(int amount)
+    public void UpscaleDouble(int jiggleAmount)
     {
         List<Point> newPoints =  new List<Point>();
         Size = 0;
@@ -82,6 +90,8 @@ public class PixelConnectionMap
                 //Console.WriteLine($"{upscaledPoint}-{midPoint}-{upscaledPoint.ConnectedPoint}");
                 midPoint.ConnectedPoint = upscaledPoint.ConnectedPoint; //connect this point to our previously connected point
                 upscaledPoint.ConnectedPoint = midPoint; //connect us to the midpoint
+
+                midPoint.Weight = upscaledPoint.ConnectedPoint.Weight;
                 newPoints.Add(midPoint);
                 Size++;
             }
@@ -90,9 +100,43 @@ public class PixelConnectionMap
         }
         _points = newPoints;
     }
+
+    //loops through the tree and fixes heights.
+    public void AssignWeights()
+    {
+        int c = 0;
+        for (int i = _points.Count - 1; i >= 0; i--)
+        {
+            c++;
+            try
+            {
+                _points[i].ConnectedPoint.Weight = c;
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Failed to get connected point");
+            }
+            //If the connected pixel is equal to or less than our own weight
+        }
+        
+        //For each Pixel,
+        /*foreach (var pixel in _points)
+        {
+            //If the connected pixel is equal to or less than our own weight
+            if (pixel.ConnectedPoint is not null)
+            {
+                if (pixel.ConnectedPoint.Weight <= pixel.Weight)
+                {
+                    Console.WriteLine($"At Pixel {pixel}-{pixel.Weight}, our neigbor is {pixel.ConnectedPoint}-{pixel.ConnectedPoint.Weight}");
+                    //Add our own weight + 1 to the connected pixel's weight
+                    pixel.ConnectedPoint.Weight = pixel.Weight + 1;
+                }
+            }
+        }*/
+    }
     
     //Depreciated
-    /*draws the map as a grid to the console
+    /*draws the map as a grid to the console*/
     public void DrawMap()
     {
         //get the size of the grid
@@ -109,43 +153,12 @@ public class PixelConnectionMap
         maxY = totalY.Max()+1;
         
         //create grid and set all values to 0
-        int[,] map = new int[maxX, maxY];
+        int[,] map = new int[8, 8];
         map.Initialize();
-        
-        //add the line connections to the grid
-        int c = _points.Count;
-        for (int x = 0; x < c; x++)
-        {
-            //continue; //debug removed
-            var p1 = _points[x];
-            // negative connections are null.
-            var cPoint = p1.connectedPoint;
-            if (cPoint is not { x: < 0, y: < 0 })
-            {
-                var line = GetLinePoints(p1.ToCoordintate(), cPoint);
-                //Console.WriteLine($"Line Between: {p1.ToCoordintate()}:{cPoint}. Line is {line.Count} Points Long");
-                foreach (var p2 in line)
-                {
-                    _points.Add(p2);
-                }
-            }
-        }
-        
-        //add the points to the grid
+
         foreach (Point point in _points)
         {
-            if (!point.isLine)
-            {
-                //DEBUG:
-                //Console.WriteLine($"Map size is {maxX},{maxY}");
-                //Console.WriteLine($"Adding {point} To the Map");
-                map[point.x, point.y] = 1;
-            }
-            else
-            {
-                //DEBUG: Console.WriteLine("adding line {0},{1}", point.x, point.y);
-                map[point.x, point.y] = 2;
-            }
+            map[point.x, point.y] = point.Weight;
         }
         
         Console.WriteLine("Drawing {0} points", _points.Count);
@@ -155,19 +168,19 @@ public class PixelConnectionMap
             for (int j = 0; j < map.GetLength(0); j++)
             {
                 //draw the point
-                if (map[j, i] == 1) {Console.Write("o");}
-                //draw the lines between the points
-                if (map[j, i] == 2)
+                if (map[j, i] != 0)
                 {
-                    Console.Write("*");
+                    //Console.Write("o");
+
+                    Console.Write(map[j, i]);
+                    Console.Write('|');
                 }
-                else {Console.Write(" ");}
+                else {Console.Write("  ");}
             }
 
             Console.Write('\n');
         }
     }
-    */
     //Depreciated
     /*
     private static List<Point> GetLinePoints(Coordintate start, Coordintate end)

@@ -3,20 +3,12 @@ using Microsoft.VisualBasic.CompilerServices;
 
 namespace RidgeGenerator;
 
-public class Point
+public class Point(int x, int y, int weight, Point? connectedPoint = null)
 {
-    public int x;
-    public int y;
-    public int Weight;
-    public Point? ConnectedPoint;
-    
-    public Point(int x, int y, int weight = 255, Point? connectedPoint = null)
-    {
-        this.x = x;
-        this.y = y;
-        this.Weight = weight;
-        this.ConnectedPoint = connectedPoint;
-    }
+    public int x = x;
+    public int y = y;
+    public int Weight = weight;
+    public Point? ConnectedPoint = connectedPoint;
 
     //Returns the midpoint between ourselves and our connected point.
     //returned point is the average weight of us and our connection, and will be connected to our connected point.
@@ -57,20 +49,38 @@ public class Point
         }
         return p1.x != p2.x && p1.y != p2.y;
     }
+    public static bool operator ==(Point? p1, Coordinate p2)
+    {
+        if (p1 is null)
+        {
+            return false;
+        }
+        return p1.x == p2.x && p1.y == p2.y;
+    }
+    public static bool operator !=(Point? p1, Coordinate p2)
+    {
+        if (p1 is null)
+        {
+            return true;
+        }
+        return p1.x != p2.x && p1.y != p2.y;
+    }
 
     //Will add the x and y together but leave the weight and connected point alone
     public static Point operator +(Point p1, Point p2)
     {
         int newx = p1.x + p2.x;
         int newy = p1.y + p2.y;
-        return new Point(newx, newy, p1.Weight, p1.ConnectedPoint);
+        int newWeight = p1.Weight + p2.Weight;
+        return new Point(newx, newy, newWeight, p1.ConnectedPoint);
     }
     //Will subtract the x and y but leave the weight and connected point alone
     public static Point operator -(Point p1, Point p2)
     {
         int newx = p1.x - p2.x;
         int newy = p1.y - p2.y;
-        return new Point(newx, newy, p1.Weight, p1.ConnectedPoint);
+        int newWeight = p1.Weight - p2.Weight;
+        return new Point(newx, newy, newWeight, p1.ConnectedPoint);
     }
     //Will add the x and y together but leave the weight and connected point alone
     public static Point operator +(Point p1, int a)
@@ -91,14 +101,16 @@ public class Point
     {
         int newx = p1.x + p2.x;
         int newy = p1.y + p2.y;
-        return new Point(newx, newy, p1.Weight, p1.ConnectedPoint);
+        int newWeight = p1.Weight + p2.weight;
+        return new Point(newx, newy, newWeight, p1.ConnectedPoint);
     }
     //Will subtract the x and y but leave the weight and connected point alone
     public static Point operator -(Point p1, Coordinate p2)
     {
         int newx = p1.x - p2.x;
         int newy = p1.y - p2.y;
-        return new Point(newx, newy, p1.Weight, p1.ConnectedPoint);
+        int newWeight = p1.Weight - p2.weight;
+        return new Point(newx, newy, newWeight, p1.ConnectedPoint);
     }
     //will multiply the x and y by the integer value and leave the weight and connected point alone.
     public static Point operator *(Point p1, int a)
@@ -112,7 +124,8 @@ public class Point
     {
         int newx = p1.x * p2.x;
         int newy = p1.y * p2.y;
-        return new Point(newx, newy, p1.Weight, p1.ConnectedPoint);
+        int newWeight = p1.Weight + p2.Weight;
+        return new Point(newx, newy, newWeight, p1.ConnectedPoint);
     }
     //will divide the x and y by the integer value (truncated) and leave the weight and connected point alone.
     public static Point operator /(Point p1, int a)

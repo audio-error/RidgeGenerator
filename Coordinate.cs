@@ -1,6 +1,6 @@
 namespace RidgeGenerator;
 
-public struct Coordinate(int x, int y, int weight = 255)
+public struct Coordinate(int x, int y, int weight)
 {
     public int x = x;
     public int y = y;

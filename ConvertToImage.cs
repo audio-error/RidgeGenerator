@@ -114,7 +114,7 @@ public class ConvertToImage
         {
             for (int col = 0; col < size; col++)
             {
-                byteArray[row, col] = pixels[index++].Red;//only use the red channel. -Sean
+                byteArray[col, row] = pixels[index++].Red;//only use the red channel. -Sean
             }
         }
         

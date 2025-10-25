@@ -4,6 +4,7 @@ using System.Net.Mime;
 using System.Numerics;
 using System.Drawing;
 using System.Drawing.Imaging;
+using SkiaSharp;
 
 namespace RidgeGenerator;
 
@@ -37,24 +38,38 @@ public class Ridge
     }
 
     //Make one random position max height
-    private void _CreateGrid(byte startHeight = 255)
+    private void _CreateGrid()
     {
-        int posX = _random.Next(_sharpMap.GridSize - 1); 
-        int posY = _random.Next(_sharpMap.GridSize - 1);
-        _sharpMap.AddPixel(posX, posY, startHeight);
-        _connectionMap.AddPoint(new Point(posX, posY, startHeight));
+        Console.WriteLine("Creating grid"); //Generate a random "Seed" Pixel
+        var posX = _random.Next(_sharpMap.GridSize - 1); 
+        var posY = _random.Next(_sharpMap.GridSize - 1);
+        Point seed = new Point(posX, posY, 1, null);
+        //Add to the map and run DLA
+        _sharpMap.AddPixel(seed.x, seed.y, 1);
+        _connectionMap.AddPoint(seed);
+        Populate(height: 1);//DLA algorithm
+        UpscaleSharp();     //Upscale
+        //Populate(height: 1);//DLA algorithm
+        Console.WriteLine($"Created Starting block of {_sharpMap.GridSize}x{_sharpMap.GridSize}");
+        _sharpMap.DrawGrid();
         
-        Populate(2,height:255);
+        //Now we want to create two versions of this map.
+        //The original version will be our "Sharp" map, we will use this to add new detail and
+        //keep track of which pixels got stuck to which. It is the ridge lines of our mountains.
+        //The second version is our "Fuzzy" map, we will upscale and blur this image to create the slopes of the mountains
         
-        _fuzzyMap.SetPixelMap(_sharpMap.GetPixelMap());
+        _fuzzyMap.SetPixelMap(_sharpMap.GetPixelMap());//create a copy of the starter map
+        _fuzzyMap.Convolute(); //blur this image to create our starter
+        
+        _fuzzyMap.AddPixelMap(_sharpMap); //Combine our slopes with our ridges
     }
 
     //this will move the pixel in a random direction and ensure it doesn't leave the bounds of the grid
     private Coordinate MoveInRandomDirection(Coordinate pos, out Coordinate direction)
     {
         int newX = 0, newY = 0;
-        int maxX = _sharpMap.GridSize-1;
-        int maxY = _sharpMap.GridSize-1;
+        var maxX = _sharpMap.GridSize-1;
+        var maxY = _sharpMap.GridSize-1;
         if (pos.x <= 0)
         {
             newX = _random.Next(0, 2);
@@ -81,13 +96,13 @@ public class Ridge
             newY = _random.Next(-1, 2);
         }
         
-        direction = new Coordinate(newX, newY);
+        direction = new Coordinate(newX, newY, 0);
         return pos + direction;
     }
     
     // Add a new pixel to the grid, then move it in random directions until it is next to another pixel
     //returns the final position of the pixel
-    private Coordinate CreateNewPixel(byte height = 255, int tries = 1000)
+    private Coordinate CreateNewPixel(byte height = 1, int tries = 1000)
     {
         byte newPixel = height; //this will be an object in the future possibly?
         //spawn the pixel in a random position
@@ -107,7 +122,7 @@ public class Ridge
             c++;
         }
         
-        Coordinate direction = new Coordinate(0,0);//direction we just moved
+        Coordinate direction = new Coordinate(0,0, 0);//direction we just moved
 
         //Keep moving in random directions until we are next to another pixel, caps at c number of moves
         c = 0;
@@ -119,12 +134,13 @@ public class Ridge
             c++;
         }
         _sharpMap.AddPixel(newPosition.x, newPosition.y, newPixel);
+        //Console.WriteLine($"Created new pixel of {newPosition.weight}");
         return newPosition;
     }
 
     private void StickTo(Coordinate pos, Coordinate neighbor)
     {
-        _connectionMap.AddPoint(pos.x, pos.y, neighbor.x, neighbor.y, pos.weight);
+        _connectionMap.AddPoint(pos.x, pos.y, pos.weight, neighbor);
         //Console.WriteLine($"{pos} has stuck to {neighbor} and has a weight of {_sharpMap[pos.x, pos.y]}");
     }
     
@@ -156,10 +172,10 @@ public class Ridge
         List<Coordinate> neighbors = new List<Coordinate>();
         for (int i = 0; i < positions.GetLength(0); i++)//for each position around us
         {
-            Coordinate neighboringPixel = new Coordinate(positions[i, 0], positions[i,1]);
             if (positions[i,0] < 0 || positions[i,0] > (currentSize-1) || positions[i,1] < 0 || positions[i,1] > (currentSize-1)){continue;}//skip this iteration if we exit the bounds of the array
 
-            
+            int neighborWeight = _sharpMap.GetPixel(positions[i, 0], positions[i, 1]);
+            Coordinate neighboringPixel = new Coordinate(positions[i, 0], positions[i,1], neighborWeight);
             if (_sharpMap.GetPixel(neighboringPixel.x, neighboringPixel.y) > 0) //check the value of the neighboring pixel
             {
                 //Console.WriteLine($"{neighboringPixel} and {neighboringPixel + direction} are equal");
@@ -180,7 +196,7 @@ public class Ridge
         if (neighbors.Count > 0)                 
         {
             neighbor = neighbors[0];
-            //Console.WriteLine($"We found {neighbors.Count} neighbors! Us: {p} is now connected to {neighbors[0]}");
+            //Console.WriteLine($"We found {neighbors.Count} neighbors! Us: {p}-{p.weight} is now connected to {neighbors[0]}-{neighbors[0].weight}");
             StickTo(p, neighbor);
             return true;
         }
@@ -191,14 +207,14 @@ public class Ridge
     }
 
     //populate the sharp grid with pixels equal to density times the volume
-    public void Populate(double density = 1.00, byte height = 255, int fails = 0)
+    private void Populate(double density = 1.00, byte height = 1, int tries = 10000, int fails = 0)
     {
-        int numOfPixelsToPlace = (int)(_sharpMap.GridSize * _sharpMap.GridSize /16 * density);
+        int numOfPixelsToPlace = (int)((_sharpMap.GridSize * _sharpMap.GridSize)/2*density);
         //for each change in the size of the grid, add pixels equal to twice the size of the grid
-        for (int j = 0; j < numOfPixelsToPlace * density; j++)
+        for (int j = 0; j < numOfPixelsToPlace; j++)
         {
-            try { CreateNewPixel(height, tries:100000); Console.Write(".");}
-            catch (Exception e) { fails++; Console.Write('X');
+            try { CreateNewPixel(height, tries:tries); Console.Write(".");}
+            catch (Exception e) { fails++; Console.Write("X " + e);
             }
         }
         Console.Write('\n');
@@ -219,35 +235,18 @@ public class Ridge
         }
     }
     
-    public byte[,] Combine(PixelMap a, PixelMap b)
-    {
-        byte[,] newPixelMap = new byte[b.GridSize, b.GridSize];
-        for (int y = 0; y < newPixelMap.GetLength(0); y++)
-        {
-            for (int x = 0; x < newPixelMap.GetLength(1); x++)
-            {
-                int newHeight = a.GetPixel(x, y) + b.GetPixel(x, y);
-                newHeight = 1/(1+newHeight)*255;
-                newPixelMap[y, x] = (byte)newHeight;
-            }
-        }
-
-        return newPixelMap;
-    } 
-    
     private void MapConnectionMap()
     {
         //wipe the original points
         _sharpMap.Initialize();
         var points = _connectionMap.GetPoints();
-        int c = 0;
         foreach (Point pixel in points)
         {
+            if (pixel.Weight > 255) pixel.Weight = 255;
             _sharpMap.AddPixel(pixel.x, pixel.y, (byte)pixel.Weight);
             //Console.WriteLine($"Pixel {pixel}-{pixel.Weight}");
-            c++;
         }
-        Console.WriteLine($"The size of our ConnectionMap is {_connectionMap.Size}, and we placed {c} Pixels");
+        //Console.WriteLine($"The size of our ConnectionMap is {_connectionMap.Size}, and we placed {c} Pixels");
     }
     
     //populate the grid with pixels, this will expand the grid exponentially
@@ -255,7 +254,7 @@ public class Ridge
     //...
     
     //double this size of the map by using the record of which pixels got stuck to which.
-    public void UpscaleSharp()
+    private void UpscaleSharp()
     {
         //First Expand the grid to twice the size.
         _sharpMap.ExpandGrid();
@@ -265,23 +264,40 @@ public class Ridge
         MapConnectionMap();
     }
     
-    //double the size of the map by using Convolution
-    public void UpscaleFuzzy()
+    //double the size of the map by using Linear Interpolation, then add a small blur with convolution
+    private void UpscaleFuzzy()
     {
         //upscale the map to twice it's size
-        //linearly interpolate the values on the bigger grid
-        _fuzzyMap.UpscaleLinearInterpolation(_fuzzyMap.GridSize);
+        //linearly interpolate the values onto the bigger grid
+        _fuzzyMap.UpscaleLinearInterpolation(2);
         //perform a convolution on this image to blur it
         _fuzzyMap.Convolute();
     }
 
     //this will run an iteration of the algorithm.
     //upscales crisp and upscales fuzzy, then combines them to produce a heightmap
-    public void Itterate()
-    { 
-        Populate(height:240);
-        UpscaleSharp();
-        
+    public void Iterate(int iterations)
+    {
+        //When we construct this object we create a small starter seed.
+        //This is then split into two version, a Sharp version which we use to add more detail,
+        //And a Fuzzy version which we add our new details too and create the softer slopes of the mountain.
+
+        for (int i = 0; i < iterations; i++)
+        {
+            //First Upscale our crisp image
+            UpscaleSharp();
+            //Then add some extra detail with DLA
+            Populate(1, 50);
+            
+            //Then upscale our Fuzzy image so it is the same size
+            UpscaleFuzzy();
+            //This will enlarge the image and also apply a small blur
+            //Finally add our ridge lines to the fuzzy image
+            _fuzzyMap.AddPixelMap(_sharpMap);
+            _fuzzyMap.Convolute();
+        }
+        //perform one final convolution to soften the final output
+        //_fuzzyMap.Convolute();
     }
 
     public byte[,] GetSharpMap()
@@ -290,8 +306,7 @@ public class Ridge
     }
     public byte[,] GetFuzzyMap()
     {
-        Console.WriteLine($"Size of fuzzymap is {_fuzzyMap.GridSize}");
-        return Combine(_fuzzyMap, _sharpMap);
+        return _fuzzyMap.GetPixelMap();
     }
     
     public List<int[]> GetConnectionMap()
@@ -299,18 +314,19 @@ public class Ridge
         return _connectionMap.GetPointsInt();
     }
     
-    public enum debugType
+    public enum DebugType
     {
         WatchPixels,
         PlaceSpecificPixel,
-        ListALlConnections
+        ListALlConnections,
+        CreateSmallGrid
     }
-    public void Debug(debugType debugType = debugType.WatchPixels)
+    public void Debug(DebugType debugType = DebugType.WatchPixels)
     {
         Console.WriteLine("Starting Debugging, press space to continue after each step.");
         switch (debugType)
         {
-            case debugType.WatchPixels:
+            case DebugType.WatchPixels:
                 Console.Write("Watching pixels... ");
                 _sharpMap.Initialize();
                 Console.ReadKey();
@@ -329,7 +345,7 @@ public class Ridge
         
                 _sharpMap.DrawGrid(); 
                 break;
-            case debugType.PlaceSpecificPixel:
+            case DebugType.PlaceSpecificPixel:
                 Console.WriteLine($"Starting Pixel Grid is");
                 _sharpMap.DrawGrid();
                 Console.WriteLine();
@@ -343,8 +359,8 @@ public class Ridge
                 
                 Console.ReadKey();
                 Console.WriteLine($"Placing Pixel at {x}, {y}");
-                Coordinate p = new Coordinate(x, y);
-                Coordinate dir = new Coordinate(0,0);
+                Coordinate p = new Coordinate(x, y, 255);
+                Coordinate dir = new Coordinate(0,0, 255);
                 bool canPlace = CheckPosition(p, dir);
 
                 _sharpMap.AddPixel(p.x, p.y, 255);
@@ -356,7 +372,7 @@ public class Ridge
                 Console.ReadKey();
                 Console.WriteLine($"This pixel can be placed: {canPlace}");
                 break;
-            case debugType.ListALlConnections:
+            case DebugType.ListALlConnections:
                 Console.Write("Listing connections... ");
                 Console.ReadKey();
                 List<int[]> conns = _connectionMap.GetPointsInt();
@@ -364,6 +380,12 @@ public class Ridge
                 {
                    Console.WriteLine($"Point: {c[0]},{c[1]} is connected to: {c[2]}, {c[3]}"); 
                 }
+                break;
+            case DebugType.CreateSmallGrid:
+                Console.Write("Creating Small Grid of 8x8..\n\n");
+                _sharpMap.DrawGrid();
+                _connectionMap.AssignWeights();
+                _connectionMap.DrawMap();
                 break;
     }
         
