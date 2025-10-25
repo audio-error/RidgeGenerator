@@ -3,13 +3,13 @@ using SkiaSharp;
 
 namespace RidgeGenerator;
 
-//simple byte map of pixels that has some functions for scaling and blurring
+//simple byte map of pixels that has some functions for scaling
 public class PixelMap
 {
     public int Size; //Number of Pixels in the maps
 
     public int GridSize => _pixelMap.GetLength(0); //length of the map (Square) TODO: make this a rectangle
-    private byte[,] _pixelMap;
+    protected byte[,] _pixelMap;
     
     public PixelMap()
     {
@@ -48,12 +48,13 @@ public class PixelMap
         return _pixelMap[x,y];
     }
 
-    public void Initialize()
+    protected void Clear()
     {
         _pixelMap = new byte[GridSize, GridSize];
         Size = 0;
     }
 
+    //combine two pixelmaps together
     public void AddPixelMap(PixelMap other)
     {
         for (int y = 0; y < other.GridSize; y++)
@@ -86,62 +87,6 @@ public class PixelMap
         }
         _pixelMap = newGrid;
         //Console.WriteLine("New grid size is {0}", newGrid.GetLength(0));
-    }
-
-    //produces the convulution of the Pixelmap position using the provided 3x3 kernal
-    private byte Convolve(double[,] kernal, int x, int y)
-    {
-        //int currentSize = _pixelMap.GetLength(0); Use _gridSize instead.
-        
-        List<double> kernalValues = new List<double>();
-        for (int i = 0; i < kernal.GetLength(0); i++)
-        {
-            //Remember that [,] loops are Y,X not X,Y
-            //i = y and j = x
-            //shift the X and Y values so that the "middle" value of the kernal is 0,0
-            int currentY = y + (i - 2);
-            for (int j = 0; j < kernal.GetLength(1); j++)
-            {
-                int currentX = x + (j - 2);
-                //Console.WriteLine($"Assessing Value: {currentX}, {currentY}");
-                //check the value the kernal is trying to evaluate is inside the image... else ignore this value
-                if (currentX < 0 || currentX > (GridSize-1) || currentY < 0 ||
-                    currentY > (GridSize-1) || kernal[i,j] == 1 ) continue;
-
-                kernalValues.Add(_pixelMap[currentX, currentY]);
-            }
-        }
-        double result = kernalValues.Average();
-        if (result > 255) return 255;
-        return (byte)result;
-    }
-    
-    //will produce a convoluted blurry version of the image. 
-    public void Convolute()
-    {
-        byte[,] convolutedImage = new byte[GridSize, GridSize];
-        double[,] kernal = new double[5, 5]
-        {  //circular kernal for a softer approach
-            {   1  ,   1  ,1f/13f,  1   ,  1   },
-            {   1  ,1f/13f,1f/13f,1f/13f,  1   },
-            {1f/13f,1f/13f,1f/13f,1f/13f,1f/13f},
-            {   1  ,1f/13f,1f/13f,1f/13f,  1   },
-            {   1  ,   1  ,1f/13f,  1   ,  1   }
-        };
-        double[,] kernalSmall = new double[3, 3]
-        {  //smaller circular kernal for a less precise approach
-            {   1  ,1f/13f,  1   },
-            {1f/13f,1f/13f,1f/13f},
-            {   1  ,1f/13f,  1   }
-        };
-        for (int x = 0; x < GridSize; x++)
-        {
-            for (int y = 0; y < GridSize; y++)
-            {
-                convolutedImage[x,y] = Convolve(kernal,x,y);
-            }
-        }
-        _pixelMap = convolutedImage;
     }
 
     //Draw the grid to the console
@@ -184,20 +129,9 @@ public class PixelMap
         _pixelMap = a;
     }
 
-    //upscale the grid by linear interpolation
-    //Depreciated
-    public void UpscaleLinearInterpolation(int scale)
+    public byte[,] GetPixelMap(int x, int y)
     {
-        //covert pixelmap into a bitmap
-        SKBitmap newBitmap = ConvertToImage.ByteArrayToImage(ConvertToImage.IntArrayToByteArray(_pixelMap));
-        SKBitmap upscaledBitmap = new SKBitmap();
-        //then upscale using linear interpolation from Skiasharp
-        SKSamplingOptions samplingOptions = new SKSamplingOptions(filter:SKFilterMode.Linear);
-        SKSizeI imageSize = new SKSizeI( GridSize * scale, GridSize * scale);
-        upscaledBitmap = newBitmap.Resize(imageSize, samplingOptions);
-        //we're doing it this was because I'm lazy - Sean
-        
-        _pixelMap = ConvertToImage.BitmapToByteArray(upscaledBitmap);
+        return _pixelMap;
     }
     
 }

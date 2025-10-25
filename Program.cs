@@ -3,33 +3,19 @@ using System.Numerics;
 using System.Security.Cryptography.X509Certificates;
 using RidgeGenerator;
 using SkiaSharp;
+using Point = RidgeGenerator.Point;
 
+Ridge heightMap = new Ridge(4,10);
+//heightMap.Iterate(4);
 
-Ridge heightMap = new Ridge(4);
+PrintToImage(heightMap.GetSharpMap(), "Sharp Image.jpg");
+PrintToImage(heightMap.GetFuzzyMap(), "Fuzzy Image.jpg");
 
-//heightMap.CreateSinglePixel(220);
-//heightMap.Iterate(3);
-heightMap.Debug(Ridge.DebugType.CreateSmallGrid);
-
-
-
-printToImage(heightMap.GetSharpMap(), "Sharp Image.jpg");
-printToImage(heightMap.GetFuzzyMap(), "Fuzzy Image.jpg");
-
-void printToImage(byte[,] map, string name)
+void PrintToImage(byte[,] map, string name)
 {
     byte[,,] byteMap = ConvertToImage.IntArrayToByteArray(map);
     SKBitmap bmap = ConvertToImage.ByteArrayToImage(byteMap);
     SKFileWStream fs = new(name);
     bmap.Encode(fs, SKEncodedImageFormat.Jpeg, quality: 100);
+    Console.WriteLine($"Output: {name} to {Path.GetFullPath(name)}");
 }
-
-
-
-/*
-map = heightMap.GetPixelMap();
-byteMap = ConvertToImage.IntArrayToByteArray(map);
-bmap = ConvertToImage.ByteArrayToImage(byteMap);
-fs = new("Fuzzy Image.jpg");
-bmap.Encode(fs, SKEncodedImageFormat.Jpeg, quality: 100);
-*/

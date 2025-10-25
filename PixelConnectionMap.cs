@@ -42,17 +42,18 @@ public class PixelConnectionMap
     //when adding a point we must pass the point it is connected too
     public void AddPoint(int x, int y, int weight, Coordinate neighbor)
     {
-        Console.WriteLine($"Received ({x},{y})-{neighbor}");
+        //Console.WriteLine($"Received ({x},{y})-{neighbor}");
         //loop through all the points to find the matching neighbor
         foreach (Point point in _points)
         {
-            Console.WriteLine($"Checking if {neighbor} = {point}");
+            //Console.WriteLine($"Checking if {neighbor} = {point}");
             if (point == neighbor)
             {
-                Console.WriteLine($"Yes, they are the same");
+                //Console.WriteLine($"Yes, they are the same");
                 //create a new point object and make it's neighbor the point we just found
-                Point newPoint = new Point(point.x, point.y, weight, point);
+                Point newPoint = new Point(x, y, weight, point);
                 _points.Add(newPoint);
+                //Console.WriteLine($"Adding {newPoint}");
                 Size++;
                 return;
             }
@@ -61,78 +62,97 @@ public class PixelConnectionMap
     }
     public void AddPoint(Point p)
     {
-        Console.WriteLine($"Received {p}, but it has no neighbors");
-        //Console.WriteLine($"Adding: {p}");
+        //Console.WriteLine($"Received {p}, but it has no neighbors");
         Size++;
         _points.Add(p);
     }
 
     //upscales by 2 times
     //Todo: jiggle midpoints a small amount to reduce the artificialness of the ridges
-    public void UpscaleDouble(int jiggleAmount)
+    public void UpscaleDouble(float jiggleAmount)
     {
+        Console.WriteLine($"Calling Upscale");
         List<Point> newPoints =  new List<Point>();
+        var alreadyAdded = new List<long>();   // tracks originals that are already scaled
         Size = 0;
-        foreach (Point point in _points)
+        foreach (Point originalPoint in _points)
         {
-            
             //Stretch all the points by 2
-            Point upscaledPoint = point * 2;
+            var upscaledPoint = originalPoint * 2;
             
-            //Console.WriteLine($"Upscaling Point: {point} -> {upscaledPoint}: Weight: {upscaledPoint.Weight}");
-            newPoints.Add(upscaledPoint); Size++;
-            //continue;
-            //now we need to fill in the gaps with new points
-            if (upscaledPoint.ConnectedPoint is not null)//skip if we aren't connected to any points (we will generate no midpoints)
-            {
-                upscaledPoint.ConnectedPoint *= 2;
-                Point midPoint = upscaledPoint.GetMidpoint();//find the midpoint of us and the connected point
-                //Console.WriteLine($"{upscaledPoint}-{midPoint}-{upscaledPoint.ConnectedPoint}");
-                midPoint.ConnectedPoint = upscaledPoint.ConnectedPoint; //connect this point to our previously connected point
-                upscaledPoint.ConnectedPoint = midPoint; //connect us to the midpoint
+            // If this original was already added as a neighbour, skip it.
+            if (alreadyAdded.Contains(upscaledPoint.Id))
+                continue;
 
-                midPoint.Weight = upscaledPoint.ConnectedPoint.Weight;
+            //now we need to fill in the gaps with new points
+            if (originalPoint.ConnectedPoint != null)//skip if we aren't connected to any points (we will generate no midpoints)
+            {
+                
+                //upscale the neighbor
+                var scaledNeighbor = originalPoint.ConnectedPoint * 2;
+                //find the midpoint of us and the connected point
+                var midPoint = upscaledPoint.GetMidpoint(scaledNeighbor);
+                midPoint.Weight = upscaledPoint.Weight;
+                //Console.WriteLine($"{upscaledPoint.Weight} | {midPoint.Weight} | {scaledNeighbor.Weight}");
+                
+                //update our connections
+                upscaledPoint.ConnectedPoint = midPoint; //connect us to the midpoint
+                midPoint.ConnectedPoint = scaledNeighbor; //connect this point to our previously connected point
+                
                 newPoints.Add(midPoint);
-                Size++;
+                newPoints.Add(scaledNeighbor);
+                Size += 2;
+                
+                // Mark neighbour as “already added”
+                alreadyAdded.Add(scaledNeighbor.Id);
             }
-            //Console.WriteLine($"Point: {upscaledPoint} -> {upscaledPoint.ConnectedPoint}");
             
+            newPoints.Add(upscaledPoint);
+            Size++;
         }
+        for (int i = newPoints.Count - 1; i >= 0; i--)
+        {
+            newPoints[i].Weight = 50;
+        }
+        Console.WriteLine($"Upscaled {newPoints.Count} points");
         _points = newPoints;
+        
+        // Verify no duplicate original references exist in the new list
+        var dupCheck = _points
+            .GroupBy(p => p.Id)          // group by reference
+            .Where(g => g.Count() > 1)
+            .Select(g => g.Key)
+            .ToList();
+        
+
+        Console.WriteLine(dupCheck.Count == 0
+            ? "No duplicate objects in the upscaled list."
+            : $"Found {dupCheck.Count} duplicate references!");
+        
     }
 
     //loops through the tree and fixes heights.
     public void AssignWeights()
     {
-        int c = 0;
-        for (int i = _points.Count - 1; i >= 0; i--)
+
+        var roots = _points.GetRootNodes().ToArray();
+        int index = 0;
+        foreach (var root in roots)   // roots = points with no ConnectedPoint or that are entry points
         {
-            c++;
-            try
-            {
-                _points[i].ConnectedPoint.Weight = c;
-            }
-            catch (Exception e)
-            {
-                Console.WriteLine("Failed to get connected point");
-            }
-            //If the connected pixel is equal to or less than our own weight
+            index = _points.IndexOf(root);
+            _points[index].Weight = 255;
+            Console.WriteLine($"Assigning {root} to {_points[index].Weight}");
+            //PropagateWeight(root);
         }
-        
-        //For each Pixel,
-        /*foreach (var pixel in _points)
-        {
-            //If the connected pixel is equal to or less than our own weight
-            if (pixel.ConnectedPoint is not null)
-            {
-                if (pixel.ConnectedPoint.Weight <= pixel.Weight)
-                {
-                    Console.WriteLine($"At Pixel {pixel}-{pixel.Weight}, our neigbor is {pixel.ConnectedPoint}-{pixel.ConnectedPoint.Weight}");
-                    //Add our own weight + 1 to the connected pixel's weight
-                    pixel.ConnectedPoint.Weight = pixel.Weight + 1;
-                }
-            }
-        }*/
+        //PropagateWeight(roots[1]);
+    }
+
+    private void PropagateWeight(Point node)
+    {
+        if (node == null) return;          // base case – reached the end of the chain
+        Console.WriteLine($"Propagating weight {node+1}");
+        node.Weight = 255;                 // highlight current point
+        PropagateWeight(node.ConnectedPoint); 
     }
     
     //Depreciated
@@ -153,7 +173,7 @@ public class PixelConnectionMap
         maxY = totalY.Max()+1;
         
         //create grid and set all values to 0
-        int[,] map = new int[8, 8];
+        int[,] map = new int[maxX, maxY];
         map.Initialize();
 
         foreach (Point point in _points)
